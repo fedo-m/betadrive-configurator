@@ -33,11 +33,13 @@ export const mixerList = [
     { name: "Custom Tricopter", pos: 24, model: "custom", image: "custom", motors: 3, servos: true },
     { name: "Quad X 1234", pos: 25, model: "quad_x", image: "quad_x_1234", motors: 4, servos: false },
     { name: "Octo X8 +", pos: 26, model: "custom", image: "custom", motors: 8, servos: false },
-    //{ name: "Car", pos: 27, model: "car", image: "car", motors: 1, servos: true }, //  reserved for upcoming feature work
+    { name: "Car", pos: 27, model: "car_truck", image: "car", motors: 1, servos: true },
 ];
 
 /**
- * GLTF stem for the attitude/preview mesh.
+ * GLTF asset name for the attitude/preview mesh. Legacy entries omit the
+ * extension and resolve to `.gltf`; entries may select `.gltf` or `.glb`
+ * explicitly.
  *
  * Built-in mixers map 1:1. Custom Airplane / Custom Tricopter get their craft
  * meshes explicitly. Only the generic Custom entry (pos 22) may infer a mesh
@@ -47,13 +49,12 @@ export const mixerList = [
  *
  * @param {number} [mixerIndex] - FC.MIXER_CONFIG.mixer (1-based); defaults to live FC
  * @param {number} [motorCount] - FC.MOTOR_CONFIG.motor_count; defaults to live FC
- * @returns {string} gltf basename under resources/models/
+ * @returns {string} model asset name or legacy stem under resources/models/
  */
 export function resolveMixerModelFile(mixerIndex, motorCount) {
     const index = mixerIndex ?? FC.MIXER_CONFIG?.mixer;
     const motors = motorCount ?? FC.MOTOR_CONFIG?.motor_count ?? 0;
     const entry = mixerList[index - 1];
-
     if (!entry) {
         return "fallback";
     }
@@ -87,6 +88,32 @@ export function resolveMixerModelFile(mixerIndex, motorCount) {
         default:
             return "fallback";
     }
+}
+
+/**
+ * CAR previews start from the vehicle's left side. Live attitude yaw is added
+ * to this offset by rotateTo(), so telemetry cannot reset the model to its
+ * asset-authored rear view.
+ *
+ * @param {number} [mixerIndex] FC mixer id; defaults to the live mixer
+ * @returns {number} initial yaw in radians
+ */
+export function resolveModelInitialYaw(mixerIndex) {
+    const index = mixerIndex ?? FC.MIXER_CONFIG?.mixer;
+    return mixerList[index - 1]?.name === "Car" ? Math.PI / 2 : 0;
+}
+
+const MODEL_FILE_EXTENSION = /\.(?:gltf|glb)$/i;
+
+/**
+ * Resolve legacy model stems and explicit GLTF/GLB filenames to a runtime URL.
+ *
+ * @param {string} modelFile model filename or legacy extensionless stem
+ * @returns {string} URL under resources/models/
+ */
+export function resolveModelAssetUrl(modelFile) {
+    const filename = MODEL_FILE_EXTENSION.test(modelFile) ? modelFile : `${modelFile}.gltf`;
+    return `./resources/models/${filename}`;
 }
 
 function getContentBoxSize(element) {
@@ -127,24 +154,31 @@ const Model = function (wrapper, canvas) {
     this.renderer.setSize(width, height);
 
     const model_file = resolveMixerModelFile();
+    const activeMixer = mixerList[(FC.MIXER_CONFIG?.mixer ?? 0) - 1];
+    const isCarModel = activeMixer?.name === "Car";
+    const initialYaw = resolveModelInitialYaw();
+    this.fixedCarOrientation = isCarModel;
+    this.initialYaw = initialYaw;
 
     // Setup scene
     this.scene = new THREE.Scene();
     this.modelWrapper = new THREE.Object3D();
+    this.modelWrapper.rotation.y = initialYaw;
 
     // Stationary camera
     this.camera = new THREE.PerspectiveCamera(60, width / height, 1, 10000);
     // move camera away from the model
     this.camera.position.z = 125;
 
-    // Setup lights
-    const light = new THREE.AmbientLight(0x404040);
-    const light2 = new THREE.DirectionalLight(new THREE.Color(1, 1, 1), 1.5);
-    light2.position.set(0, 1, 0);
+    // PBR vehicle materials need a brighter fill and a front-facing key light;
+    // the original top-only light leaves the vertical body panels nearly black.
+    const ambientLight = new THREE.AmbientLight(isCarModel ? 0xffffff : 0x404040, isCarModel ? 1.2 : 1);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, isCarModel ? 2 : 1.5);
+    directionalLight.position.set(isCarModel ? 2 : 0, isCarModel ? 3 : 1, isCarModel ? 4 : 0);
 
     // Add objects to scene
-    this.scene.add(light);
-    this.scene.add(light2);
+    this.scene.add(ambientLight);
+    this.scene.add(directionalLight);
     this.scene.add(this.camera);
     this.scene.add(this.modelWrapper);
 
@@ -169,7 +203,7 @@ const Model = function (wrapper, canvas) {
 Model.prototype.loadGLTF = function (model_file, callback) {
     const loader = new GLTFLoader();
     loader.load(
-        `./resources/models/${model_file}.gltf`,
+        resolveModelAssetUrl(model_file),
         (gltf) => {
             const model = gltf.scene;
             model.scale.set(15, 15, 15);
@@ -293,14 +327,16 @@ Model.prototype.rotateTo = function (x, y, z) {
     }
 
     this.model.rotation.x = x;
-    this.modelWrapper.rotation.y = y;
+    this.modelWrapper.rotation.y = y + (this.initialYaw || 0);
     this.model.rotation.z = z;
 
     this.render();
 };
 
 Model.prototype.rotateBy = function (x, y, z) {
-    if (!this.model) {
+    // The CAR preview has a fixed heading. Its receiver inputs are steering,
+    // throttle and AUX channels, not aircraft attitude axes.
+    if (!this.model || this.fixedCarOrientation) {
         return;
     }
 

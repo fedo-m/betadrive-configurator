@@ -460,6 +460,22 @@ const auxConfig = computed(() => fcStore.auxConfig);
 const auxConfigIds = computed(() => fcStore.auxConfigIds);
 const modeRanges = computed(() => fcStore.modeRanges);
 const rssiConfig = computed(() => fcStore.rssiConfig);
+const CAR_MIXER_ID = 28;
+const isCarMixer = computed(() => fcStore.mixerConfig.mixer === CAR_MIXER_ID);
+
+function receiverChannelLabel(channelNumber: number) {
+    if (!isCarMixer.value) {
+        if (channelNumber <= 4) {
+            return t(["controlAxisRoll", "controlAxisPitch", "controlAxisYaw", "controlAxisThrottle"][channelNumber - 1]);
+        }
+        return t(`controlAxisAux${channelNumber - 4}`);
+    }
+
+    if (channelNumber === 1) return t("controlAxisSteering");
+    if (channelNumber === 2) return t("controlAxisThrottle");
+    const auxNumber = channelNumber - 2;
+    return `${t(`controlAxisAux${auxNumber}`)} [${auxNumber}]`;
+}
 
 // --- Dirty state tracking ---
 
@@ -593,22 +609,19 @@ function addModeAssignments(auxAssignments: AuxAssignments, modeIndex: number) {
 
 const activeChannels = computed(() => {
     const channels = [];
-    const channelNames = [t("controlAxisRoll"), t("controlAxisPitch"), t("controlAxisYaw"), t("controlAxisThrottle")];
     const auxAssignments = collectAuxAssignments();
 
-    let auxIndex = 1;
     let auxAssignmentIndex = 0;
 
     for (let i = 0; i < rxFailConfig.value.length; i++) {
-        if (i < 4) {
-            channels.push({ name: channelNames[i] });
-        } else {
-            const messageKey = `controlAxisAux${auxIndex++}`;
-            channels.push({
-                name: t(messageKey),
-                assignments: auxAssignments[auxAssignmentIndex++] || [],
-            });
-        }
+        const channelNumber = i + 1;
+        const hasAuxAssignments = !isCarMixer.value ? channelNumber > 4 : channelNumber > 2;
+        channels.push({
+            name: receiverChannelLabel(channelNumber),
+            ...(hasAuxAssignments
+                ? { assignments: auxAssignments[auxAssignmentIndex++] || [] }
+                : {}),
+        });
     }
     return channels;
 });

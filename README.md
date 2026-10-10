@@ -1,7 +1,7 @@
-![Betaflight](https://raw.githubusercontent.com/betaflight/.github/main/profile/images/bf_logo.svg#gh-light-mode-only)
-![Betaflight](https://raw.githubusercontent.com/betaflight/.github/main/profile/images/bf_logo_dark.svg#gh-dark-mode-only)
+![Betadrive](https://raw.githubusercontent.com/betaflight/.github/main/profile/images/bf_logo.svg#gh-light-mode-only)
+![Betadrive](https://raw.githubusercontent.com/betaflight/.github/main/profile/images/bf_logo_dark.svg#gh-dark-mode-only)
 
-# Betaflight App
+# Betadrive Configurator
 
 [![Latest version](https://img.shields.io/github/v/release/betaflight/betaflight-configurator)](https://github.com/betaflight/betaflight-configurator/releases)
 [![Build](https://img.shields.io/github/actions/workflow/status/betaflight/betaflight-configurator/deploy.yml?branch=master)](https://github.com/betaflight/betaflight-configurator/actions/workflows/deploy.yml)
@@ -11,17 +11,33 @@
 [![Join us on Discord!](https://img.shields.io/discord/868013470023548938)](https://discord.gg/n4E6ak4u3c)
 
 
-Betaflight App is a crossplatform configuration and management application for the Betaflight flight control system.
+Betadrive Configurator is a cross-platform configuration and management application for the Betadrive flight-control system.
 
-The Betaflight App is a Progressive Web Application (PWA). The most recent release of the Betaflight App is available at [app.betaflight.com](https://app.betaflight.com)
+This project is derived from the [original Betaflight Configurator repository](https://github.com/betaflight/betaflight-configurator).
+The upstream project and its historical release links are retained where they are useful for attribution, compatibility, and reference.
+
+## Betadrive changes
+
+The Betadrive fork extends the original configurator for vehicle-oriented firmware targets:
+
+- Adds CAR mixer support with Steering, Throttle, and AUX receiver presentation.
+- Adds the `ST123456` channel-map option and CAR-specific failsafe handling.
+- Exposes CAR PWM output, neutral pulse, reverse-drive, and 3D-mode controls.
+- Adds GLTF/GLB vehicle-model loading, fixed CAR orientation, and dedicated lighting.
+- Improves Firefox WebUSB/DFU error handling when WebUSB is unavailable.
+- Adds development/build support for Betadrive-specific firmware options and tests.
+
+The configurator is coupled to the [Betadrive firmware](../betadrive). UI controls, mixer identifiers, receiver maps, PWM settings, model behavior, and build-option checks must remain compatible with the firmware implementation. Changes to one repository may therefore require coordinated changes in the other.
+
+Betadrive Configurator is a Progressive Web Application (PWA). The upstream Betaflight application is available at [app.betaflight.com](https://app.betaflight.com).
 
 NOTE: If you are considering testing the latest unstable release then it is at [master.app.betaflight.com](https://master.app.betaflight.com)
 
-Various types of aircraft are supported by the tool and by Betaflight, e.g. quadcopters, hexacopters, octocopters and fixed-wing aircraft.
+Various aircraft and vehicle types are supported by the tool and firmware, including quadcopters, hexacopters, octocopters, fixed-wing aircraft, and CAR targets.
 
 ## Historical Releases
 
-These are still available under different operating systems and allows you to configure the Betaflight software running on any supported Betaflight target. [Downloads are available in Releases.](https://github.com/betaflight/betaflight-configurator/releases)
+These are still available under different operating systems and can be used to configure compatible Betadrive/Betaflight targets. [Historical downloads are available in the original releases.](https://github.com/betaflight/betaflight-configurator/releases)
 
 ## Installation
 
@@ -29,7 +45,7 @@ These are still available under different operating systems and allows you to co
 
 We provide a standalone program for Windows, Linux, Mac and Android.
 
-Download the installer from [Releases.](https://github.com/betaflight/betaflight-configurator/releases)
+Download historical upstream installers from the [original releases.](https://github.com/betaflight/betaflight-configurator/releases)
 
 ### Notes
 
@@ -39,7 +55,7 @@ The minimum required version of windows is Windows 8.
 
 #### MacOS X users
 
-Changes to the security model used in the latest versions of MacOS X 10.14 (Mojave) and 10.15 (Catalina) mean that the operating system will show an error message ('"Betaflight Configurator.app" is damaged and can’t be opened. You should move it to the Trash.') when trying to install the application. To work around this, run the following command in a terminal after installing: `sudo xattr -rd com.apple.quarantine /Applications/Betaflight\ App.app`.
+Changes to the security model used in the latest versions of MacOS X 10.14 (Mojave) and 10.15 (Catalina) mean that the operating system may show an error message when trying to install the application. To work around this, run the following command in a terminal after installing: `sudo xattr -rd com.apple.quarantine /Applications/Betadrive\ Configurator.app`.
 
 #### Linux users
 
@@ -60,7 +76,7 @@ Post-installation errors can be prevented by making sure the directory `/usr/sha
 sudo mkdir /usr/share/desktop-directories/
 ```
 
-The `libatomic` library must also be installed before installing Betaflight App. (If the library is missing, the installation will succeed but Betaflight App will not start.) Some Linux distributions (e.g. Fedora) will install it automatically. On Debian or Ubuntu you can install it as follows:
+The `libatomic` library must also be installed before installing Betadrive Configurator. (If the library is missing, the installation will succeed but the application will not start.) Some Linux distributions (e.g. Fedora) will install it automatically. On Debian or Ubuntu you can install it as follows:
 
 ```
 sudo apt install libatomic1
@@ -88,11 +104,11 @@ sudo apt-get -f install
 
 #### Graphics Issues
 
-If you experience graphics display problems or smudged/dithered fonts display issues in Betaflight App, try invoking the `betaflight-configurator` executable file with the `--disable-gpu` command line switch. This will switch off hardware graphics acceleration. Likewise, setting your graphics card antialiasing option to OFF (e.g. FXAA parameter on NVidia graphics cards) might be a remedy as well.
+If you experience graphics display problems or smudged/dithered fonts in Betadrive Configurator, try invoking the application with the `--disable-gpu` command-line switch. This disables hardware graphics acceleration.
 
 ### Unstable Testing Versions
 
-The future of the Betaflight App is moving to a PWA (Progressive Web Application). In this way it will be easier to maintain specially to support different devices like phones, tablets. etc. Is a work in progress but you can have access to the latest snapshot in PWA way without installing anything (take into account that some things don't work and are in development).
+The Betadrive Configurator is developed as a PWA (Progressive Web Application), making it easier to support desktops, tablets, and phones. Development snapshots may be incomplete and should be used for testing only.
 
 - Latest PWA master snapshot of the App: [https://master.app.betaflight.com/](https://master.app.betaflight.com/)
 
@@ -102,7 +118,7 @@ The future of the Betaflight App is moving to a PWA (Progressive Web Application
 
 **Please do not submit pull requests for translation changes, but read and follow the instructions below!**
 
-Betaflight App has been translated into several languages. The application will try to detect and use your system language if a translation into this language is available. You can help [translating the application into your language](https://github.com/betaflight/betaflight/tree/master/README.md#translators);
+Betadrive Configurator has been translated into several languages. The application will try to detect and use your system language if a translation is available.
 
 If you prefer to have the application in English or any other language, you can select your desired language in the first screen of the application.
 
@@ -182,7 +198,7 @@ There's a dedicated Discord server here:
 
 https://discord.gg/n4E6ak4u3c
 
-We also have a Facebook Group. Join us to get a place to talk about Betaflight, ask configuration questions, or just hang out with fellow pilots.
+We also have a Facebook Group. Join us to get a place to talk about Betadrive, compatible firmware, or just hang out with fellow pilots.
 
 https://www.facebook.com/groups/betaflightgroup/
 
@@ -190,11 +206,11 @@ Etiquette: Don't ask to ask and please wait around long enough for a reply - som
 
 ### Issue trackers
 
-For Betaflight App issues raise them here
+For Betadrive Configurator issues raise them here
 
 https://github.com/betaflight/betaflight-configurator/issues
 
-For Betaflight Firmware issues raise them here
+For Betadrive Firmware issues raise them in the firmware repository.
 
 https://github.com/betaflight/betaflight/issues
 
@@ -204,4 +220,4 @@ We accept clean and reasonable patches, submit them!
 
 ## Credits
 
-For the full details of the contributions made to the Betaflight App (and its predecessors) please check out the [Github contributors page](https://github.com/betaflight/betaflight-configurator/graphs/contributors).
+For the full details of the contributions inherited from the original Betaflight Configurator, please check the [upstream contributors page](https://github.com/betaflight/betaflight-configurator/graphs/contributors).

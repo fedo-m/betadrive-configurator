@@ -59,6 +59,8 @@ function serveFileFromDirectory(directory) {
                 ".woff2",
                 ".ttf",
                 ".eot",
+                ".bin",
+                ".glb",
             ];
             const isBinary = binaryExtensions.some((ext) => filePath.toLowerCase().endsWith(ext));
 
@@ -84,8 +86,13 @@ function serveFileFromDirectory(directory) {
                 res.setHeader("Content-Type", "text/css");
             } else if (filePath.endsWith(".js")) {
                 res.setHeader("Content-Type", "application/javascript");
+            } else if (filePath.endsWith(".bin")) {
+                res.setHeader("Content-Type", "application/octet-stream");
+            } else if (filePath.endsWith(".glb")) {
+                res.setHeader("Content-Type", "model/gltf-binary");
             }
 
+            res.setHeader("Cache-Control", "no-store");
             res.end(fileContents);
             // eslint-disable-next-line unused-imports/no-unused-vars
         } catch (e) {
@@ -102,9 +109,12 @@ function serveFileFromDirectory(directory) {
  * @returns {import("vite").Plugin}
  */
 function serveLocalesPlugin() {
+    const localesPath = path.resolve(import.meta.dirname, "locales");
+
     return {
         name: "serve-locales",
         configureServer(server) {
+            server.watcher.add(localesPath);
             server.middlewares.use((req, res, next) => {
                 if (req.url.startsWith("/locales/")) {
                     serveFileFromDirectory("locales")(req, res, next);
@@ -114,6 +124,12 @@ function serveLocalesPlugin() {
                     next();
                 }
             });
+        },
+        handleHotUpdate({ file, server }) {
+            if (file === localesPath || file.startsWith(`${localesPath}${path.sep}`)) {
+                server.ws.send({ type: "full-reload", path: "*" });
+                return [];
+            }
         },
     };
 }
@@ -160,17 +176,17 @@ function isCycleBreakingImport(warning) {
 
 export default defineConfig({
     base: "./", // Important for production APK asset paths
+    input: {
+        main: resolve(import.meta.dirname, "src/index.html"),
+        receiver_msp: resolve(import.meta.dirname, "src/components/tabs/receiver-msp/receiver_msp.html"),
+    },
     define: {
         __APP_VERSION__: JSON.stringify(pkg.version),
         __APP_PRODUCTNAME__: JSON.stringify(pkg.productName),
         __APP_REVISION__: JSON.stringify(commitHash),
     },
     build: {
-        rollupOptions: {
-            input: {
-                main: resolve(import.meta.dirname, "src/index.html"),
-                receiver_msp: resolve(import.meta.dirname, "src/components/tabs/receiver-msp/receiver_msp.html"),
-            },
+        rolldownOptions: {
             onwarn(warning, defaultHandler) {
                 if (warning.code === "INEFFECTIVE_DYNAMIC_IMPORT" && isCycleBreakingImport(warning)) {
                     return;
@@ -212,7 +228,7 @@ export default defineConfig({
         VitePWA({
             registerType: "prompt",
             workbox: {
-                globPatterns: ["**/*.{js,css,html,ico,png,svg,json,mcm,gltf}"],
+                globPatterns: ["**/*.{js,css,html,ico,png,svg,json,mcm,gltf,glb,bin}"],
                 // 5MB
                 maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
             },

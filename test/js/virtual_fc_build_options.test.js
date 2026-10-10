@@ -14,6 +14,12 @@ import Features from "../../src/js/Features";
 const VIRTUAL_API_VERSIONS = [API_VERSION_1_44, API_VERSION_1_45, API_VERSION_1_46, API_VERSION_1_47, API_VERSION_1_48];
 
 describe("Virtual FC build options", () => {
+    it("exposes the CAR mixer prerequisites", () => {
+        VirtualFC.setVirtualConfig();
+
+        expect(FC.CONFIG.buildOptions).toEqual(expect.arrayContaining(["USE_PWM_OUTPUT", "USE_SERVOS"]));
+    });
+
     it("only reports option names that firmware can emit", () => {
         VirtualFC.setVirtualConfig();
 

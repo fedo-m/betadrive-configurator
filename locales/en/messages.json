@@ -699,6 +699,9 @@
     "stm32DfuPermissionRequired": {
         "message": "The device has rebooted to DFU mode.<br><br>Your browser requires USB permission to access the DFU device. Click the button below to select it from the device picker."
     },
+    "stm32WebUsbRequired": {
+        "message": "STM32 firmware flashing requires WebUSB. Firefox cannot access the DFU bootloader; use Chrome/Edge or the Betaflight desktop app."
+    },
     "stm32RebootingToBootloader": {
         "message": "Initiating reboot to bootloader ..."
     },
@@ -1691,6 +1694,21 @@
     "configurationReverseMotorSwitchHelp": {
         "message": "This option configures the mixer to expect the motor direction to be reversed and the propellers to be on accordingly. <strong>Warning:</strong> This does not reverse the motor direction. Use the configuration tool for your ESCs or switch the ESC - motor wiring order to achieve this. Also, make sure to check with propellers off that your motors are rotating in the directions shown in the diagram above before attempting to arm."
     },
+    "configurationCarReverseDrive": {
+        "message": "Reverse drive direction"
+    },
+    "configurationCarReverseDriveHelp": {
+        "message": "Mirrors the CAR throttle signal around neutral. Neutral remains unchanged; the 1000–1500 µs and 1500–2000 µs drive ranges exchange direction."
+    },
+    "configurationCarNeutral": {
+        "message": "CAR neutral [µs]"
+    },
+    "configurationCarNeutralHelp": {
+        "message": "The exact PWM pulse emitted at centered throttle, while disarmed, and when the receiver signal is invalid."
+    },
+    "configurationCarPwmMapping": {
+        "message": "Normal: 1000–1500 µs reverse, 1500 µs neutral, 1500–2000 µs forward. Reversed direction exchanges forward and reverse without moving neutral."
+    },
     "configurationAutoDisarmDelay": {
         "message": "Disarm motors after delay [seconds]"
     },
@@ -2630,6 +2648,9 @@
     },
     "receiverChannelMap": {
         "message": "Channel Map"
+    },
+    "receiverChannelMapCarOption": {
+        "message": "ST123456 (Steering / Throttle / AUX)"
     },
     "receiverChannelDefaultOption": {
         "message": "Default"
@@ -4511,6 +4532,9 @@
     },
     "controlAxisRoll": {
         "message": "Roll [A]"
+    },
+    "controlAxisSteering": {
+        "message": "Steering [S]"
     },
     "controlAxisPitch": {
         "message": "Pitch [E]"

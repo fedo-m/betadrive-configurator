@@ -27,6 +27,15 @@ import WebUsbDfuTransport from "./WebUsbDfuTransport";
 
 // Error constant used when an already-authorized DFU device isn't found
 export const DFU_AUTH_REQUIRED = "DFU_AUTH_REQUIRED";
+export const DFU_UNSUPPORTED = "DFU_UNSUPPORTED";
+
+export class DFUUnsupportedError extends Error {
+    constructor() {
+        super(DFU_UNSUPPORTED);
+        this.name = "DFUUnsupportedError";
+        this.code = DFU_UNSUPPORTED;
+    }
+}
 
 export class DFUAuthRequiredError extends Error {
     constructor() {
@@ -121,6 +130,10 @@ export class UsbDfuProtocol extends EventTarget {
     }
 
     async requestPermission() {
+        if (this.transport?.available === false) {
+            console.warn(`${this.logHead} WebUSB is not available in this browser`);
+            return null;
+        }
         let newPermissionPort = null;
         try {
             newPermissionPort = await this.transport.requestPermission();
@@ -137,6 +150,9 @@ export class UsbDfuProtocol extends EventTarget {
      * This allows the caller to present a user gesture to call `requestDevice`.
      */
     async waitForDfu(timeout = 10000, interval = 500) {
+        if (this.transport?.available === false) {
+            throw new DFUUnsupportedError();
+        }
         const result = await this.transport.waitForDfuDevice(timeout, interval);
         if (result) {
             return result;

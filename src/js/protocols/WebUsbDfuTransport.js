@@ -13,7 +13,7 @@ class WebUsbDfuTransport extends UsbDfuDescriptors {
         this.logHead = "[WebUSB Transport]";
         this.usbDevice = null;
 
-        if (!navigator?.usb) {
+        if (!globalThis.navigator?.usb) {
             console.log(`${this.logHead} WebUSB API not supported`);
             return;
         }
@@ -21,7 +21,7 @@ class WebUsbDfuTransport extends UsbDfuDescriptors {
         const isDfuDevice = (device) =>
             (usbDevices?.filters || []).some((f) => device.vendorId === f.vendorId && device.productId === f.productId);
 
-        navigator.usb.addEventListener("connect", (e) => {
+        globalThis.navigator.usb.addEventListener("connect", (e) => {
             if (!isDfuDevice(e.device)) {
                 return;
             }
@@ -29,7 +29,7 @@ class WebUsbDfuTransport extends UsbDfuDescriptors {
             this.dispatchEvent(new CustomEvent("addedDevice", { detail: port }));
         });
 
-        navigator.usb.addEventListener("disconnect", (e) => {
+        globalThis.navigator.usb.addEventListener("disconnect", (e) => {
             if (!isDfuDevice(e.device)) {
                 return;
             }
@@ -43,7 +43,7 @@ class WebUsbDfuTransport extends UsbDfuDescriptors {
     }
 
     get available() {
-        return !!navigator?.usb;
+        return !!globalThis.navigator?.usb;
     }
 
     createPort(device) {
@@ -60,15 +60,21 @@ class WebUsbDfuTransport extends UsbDfuDescriptors {
     }
 
     async getDevices() {
+        if (!this.available) {
+            return [];
+        }
         const filters = usbDevices?.filters || [];
-        const ports = await navigator.usb.getDevices();
+        const ports = await globalThis.navigator.usb.getDevices();
         return ports
             .filter((port) => filters.some((f) => port.vendorId === f.vendorId && port.productId === f.productId))
             .map((port) => this.createPort(port));
     }
 
     async requestPermission() {
-        const userSelectedPort = await navigator.usb.requestDevice(usbDevices);
+        if (!this.available) {
+            return null;
+        }
+        const userSelectedPort = await globalThis.navigator.usb.requestDevice(usbDevices);
         console.log(
             `${this.logHead} WebUSB Version: ${userSelectedPort.deviceVersionMajor}.${userSelectedPort.deviceVersionMinor}.${userSelectedPort.deviceVersionSubminor}`,
         );
@@ -76,6 +82,9 @@ class WebUsbDfuTransport extends UsbDfuDescriptors {
     }
 
     async waitForDfuDevice(timeout = 10000, interval = 500) {
+        if (!this.available) {
+            return null;
+        }
         const start = Date.now();
         const filters = usbDevices?.filters || [];
         const isDfuDevice = (device) =>
@@ -85,14 +94,14 @@ class WebUsbDfuTransport extends UsbDfuDescriptors {
         // Snapshot already-connected DFU devices by count so we detect newly appeared
         // ones even when identical VID/PID boards lack serial numbers.
         const knownDevices = new Map();
-        for (const device of (await navigator.usb.getDevices()).filter(isDfuDevice)) {
+        for (const device of (await globalThis.navigator.usb.getDevices()).filter(isDfuDevice)) {
             const id = getIdentifier(device);
             knownDevices.set(id, (knownDevices.get(id) ?? 0) + 1);
         }
 
         while (Date.now() - start < timeout) {
             try {
-                const ports = await navigator.usb.getDevices();
+                const ports = await globalThis.navigator.usb.getDevices();
                 const seenNow = new Map();
                 const dfuPort = ports.find((p) => {
                     if (!isDfuDevice(p)) {

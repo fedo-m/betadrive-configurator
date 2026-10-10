@@ -1,0 +1,32 @@
+3D MODEL LICENSE AND ATTRIBUTION
+
+Asset filename: car_truck.glb
+Original model title: Truck
+Creator / attribution name: Poly by Google
+Source: https://poly.pizza/m/36sY8cTSgKL
+
+License: Creative Commons Attribution 3.0 Unported (CC BY 3.0)
+License URL: https://creativecommons.org/licenses/by/3.0/
+Full legal text: https://creativecommons.org/licenses/by/3.0/legalcode
+
+Attribution:
+"Truck" by Poly by Google, sourced from
+https://poly.pizza/m/36sY8cTSgKL, licensed under CC BY 3.0:
+https://creativecommons.org/licenses/by/3.0/
+
+Local naming: distributed under the filename car_truck.glb.
+No geometry, material, texture, or scale changes have been verified for this
+local asset. If an adapted version is distributed, add a description of its
+actual modifications to this notice and retain any supplied original notices.
+
+This model may be copied, redistributed, and adapted, including for commercial
+use, subject to the CC BY 3.0 terms. Attribution is required. No endorsement
+by the original creator is implied.
+
+This notice applies to the model and its associated assets, including any
+converted car_truck.gltf and accompanying buffers and textures. It does not
+change the license of BetaDrive source code or other assets.
+
+This is an attribution and license notice, not a replacement for the full
+license linked above.
+
