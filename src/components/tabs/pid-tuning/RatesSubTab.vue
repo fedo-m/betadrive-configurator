@@ -1629,7 +1629,7 @@ function renderModel(timestamp: number) {
         return;
     }
 
-    // Early return if model geometry isn't loaded yet. model.js assigns `model` in its
+    // Early return if model geometry isn't loaded yet. Model assigns `model` in its
     // loader callback, where TypeScript does not see it, hence the `in` check.
     if (!("model" in model) || !model.model) {
         animationFrameId = requestAnimationFrame(renderModel);

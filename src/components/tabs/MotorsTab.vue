@@ -11,8 +11,8 @@
                         <UiBox :title="$t('configurationMixer')" type="neutral" collapsible>
                             <USelect v-model="fcStore.mixerConfig.mixer" :items="sortedMixerListItems" />
                             <SettingRow
-                                :label="$t('configurationReverseMotorSwitch')"
-                                :help="$t('configurationReverseMotorSwitchHelp')"
+                                :label="$t(isCarMixer ? 'configurationCarReverseDrive' : 'configurationReverseMotorSwitch')"
+                                :help="$t(isCarMixer ? 'configurationCarReverseDriveHelp' : 'configurationReverseMotorSwitchHelp')"
                                 fullWidth
                             >
                                 <USwitch v-model="reverseMotorDir" size="xs" />
@@ -55,7 +55,7 @@
                                     @update:model-value="onProtocolChange"
                                 />
                             </SettingRow>
-                            <SettingRow v-if="showAnalogSettings" :label="$t('configurationunsyndePwm')" fullWidth>
+                            <SettingRow v-if="showAnalogSettings && !isCarMixer" :label="$t('configurationunsyndePwm')" fullWidth>
                                 <USwitch v-model="useUnsyncedPwm" size="xs" />
                             </SettingRow>
                             <SettingRow
@@ -65,16 +65,16 @@
                             >
                                 <UInputNumber
                                     v-model="fcStore.pidAdvancedConfig.motor_pwm_rate"
-                                    :min="200"
+                                    :min="isCarMixer ? 50 : 200"
                                     :max="32000"
-                                    :step="100"
+                                    :step="isCarMixer ? 1 : 100"
                                     size="xs"
                                     orientation="vertical"
                                     :format-options="{ useGrouping: false }"
                                     class="w-16"
                                 />
                             </SettingRow>
-                            <SettingRow v-if="protocolConfigured" fullWidth>
+                            <SettingRow v-if="protocolConfigured && !isCarMixer" fullWidth>
                                 <USwitch
                                     :model-value="isFeatureEnabled('MOTOR_STOP')"
                                     @update:model-value="toggleFeature('MOTOR_STOP', $event)"
@@ -232,6 +232,7 @@
                                 <USwitch
                                     :model-value="isFeatureEnabled('3D')"
                                     @update:model-value="toggleFeature('3D', $event)"
+                                    :disabled="isCarMixer"
                                     size="xs"
                                 />
                                 <template #label>
@@ -239,7 +240,7 @@
                                 </template>
                             </SettingRow>
                             <template v-if="isFeatureEnabled('3D')">
-                                <SettingRow :label="$t('configuration3dDeadbandLow')" fullWidth>
+                                <SettingRow v-if="!isCarMixer" :label="$t('configuration3dDeadbandLow')" fullWidth>
                                     <UInputNumber
                                         v-model="fcStore.motor3dConfig.deadband3d_low"
                                         :min="1250"
@@ -251,7 +252,7 @@
                                         class="w-16"
                                     />
                                 </SettingRow>
-                                <SettingRow :label="$t('configuration3dDeadbandHigh')" fullWidth>
+                                <SettingRow v-if="!isCarMixer" :label="$t('configuration3dDeadbandHigh')" fullWidth>
                                     <UInputNumber
                                         v-model="fcStore.motor3dConfig.deadband3d_high"
                                         :min="1400"
@@ -263,7 +264,11 @@
                                         class="w-16"
                                     />
                                 </SettingRow>
-                                <SettingRow :label="$t('configuration3dNeutral')" fullWidth>
+                                <SettingRow
+                                    :label="$t(isCarMixer ? 'configurationCarNeutral' : 'configuration3dNeutral')"
+                                    :help="isCarMixer ? $t('configurationCarNeutralHelp') : undefined"
+                                    fullWidth
+                                >
                                     <UInputNumber
                                         v-model="fcStore.motor3dConfig.neutral"
                                         :min="1400"
@@ -275,6 +280,9 @@
                                         class="w-16"
                                     />
                                 </SettingRow>
+                                <p v-if="isCarMixer" class="text-sm text-muted">
+                                    {{ $t("configurationCarPwmMapping") }}
+                                </p>
                             </template>
                         </UiBox>
                     </div>
@@ -590,6 +598,11 @@ const fcStore = useFlightControllerStore();
 const dialog = useDialog();
 const { hasBuildOption } = useBuildOptions();
 
+const CAR_MIXER_ID = 28;
+const CAR_PWM_RATE = 50;
+const isCarMixer = computed(() => fcStore.mixerConfig.mixer === CAR_MIXER_ID);
+const carSelectionReady = ref(false);
+
 // Initialize motors state management
 const motorsState = useMotorsState();
 const { configHasChanged } = motorsState;
@@ -690,6 +703,12 @@ const escProtocolItems = computed(() =>
 
 const isProtocolDisabled = (escProtocolName: string) => {
     const requiredOption = EscProtocols.GetBuildOption(escProtocolName);
+    // CAR targets use the firmware's PWM output path for the single drive
+    // channel. Keep the normal build-option gate for other mixers, but do not
+    // disable PWM_OUTPUT here when the CAR firmware has exposed the protocol.
+    if (isCarMixer.value) {
+        return escProtocolName !== EscProtocols.PROTOCOL_PWM;
+    }
     if (!requiredOption) {
         return false;
     }
@@ -702,6 +721,20 @@ const selectedEscProtocol = computed({
         fcStore.pidAdvancedConfig.fast_pwm_protocol = val;
     },
 });
+
+const applyCarMotorDefaults = () => {
+    const pwmProtocol = availableEscProtocols.value.indexOf(EscProtocols.PROTOCOL_PWM);
+    if (pwmProtocol >= 0) {
+        fcStore.pidAdvancedConfig.fast_pwm_protocol = pwmProtocol;
+    }
+    fcStore.pidAdvancedConfig.use_unsyncedPwm = 1;
+    fcStore.pidAdvancedConfig.motor_pwm_rate = CAR_PWM_RATE;
+    fcStore.features.features?.enable("3D");
+    fcStore.features.features?.disable("MOTOR_STOP");
+    fcStore.features.features?.disable("AIRMODE");
+    fcStore.motor3dConfig.deadband3d_low = fcStore.motor3dConfig.neutral;
+    fcStore.motor3dConfig.deadband3d_high = fcStore.motor3dConfig.neutral;
+};
 
 const onProtocolChange = () => {
     // legacy motors.js triggers 'updateVisibility' here.
@@ -905,6 +938,10 @@ onMounted(async () => {
 
     // Setup configuration change watchers (CRITICAL: tracks all config changes)
     setupConfigWatchers();
+    carSelectionReady.value = true;
+    if (isCarMixer.value) {
+        applyCarMotorDefaults();
+    }
 
     // Store initial dshotBidir value for comparison (MUST be set before enabling watcher)
     previousDshotBidir.value = fcStore.motorConfig.use_dshot_telemetry;
@@ -1351,9 +1388,34 @@ const reverseMotorDir = computed({
     },
 });
 
+watch(
+    () => fcStore.mixerConfig.mixer,
+    (mixer, previousMixer) => {
+        if (carSelectionReady.value && mixer === CAR_MIXER_ID && previousMixer !== CAR_MIXER_ID) {
+            applyCarMotorDefaults();
+        }
+    },
+);
+
+watch(
+    () => fcStore.motor3dConfig.neutral,
+    (neutral) => {
+        if (carSelectionReady.value && isCarMixer.value) {
+            fcStore.motor3dConfig.deadband3d_low = neutral;
+            fcStore.motor3dConfig.deadband3d_high = neutral;
+        }
+    },
+);
+
 const sortedMixerList = computed(() => {
     // Legacy behavior: sort mixer list alphabetically
-    return [...mixerList].sort((a, b) => a.name.localeCompare(b.name));
+    return mixerList
+        .filter(
+            (mixer) =>
+                mixer.pos !== CAR_MIXER_ID - 1 ||
+                (hasBuildOption("USE_PWM_OUTPUT") && hasBuildOption("USE_SERVOS")),
+        )
+        .sort((a, b) => a.name.localeCompare(b.name));
 });
 
 const sortedMixerListItems = computed(() =>

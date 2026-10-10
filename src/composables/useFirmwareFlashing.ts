@@ -411,6 +411,14 @@ export function useFirmwareFlashing(params: FirmwareFlashingParams) {
             });
             DeviceHandler.dfuProtocol.connect(port, firmware, flashing_options);
         } else if (isSerial) {
+            // STM32 serial flashing reboots into USB DFU. Firefox exposes Web Serial
+            // but not WebUSB, so stop before rebooting the board into an inaccessible
+            // bootloader and leave the existing serial connection usable.
+            if (!noRebootSequence && DeviceHandler.dfuProtocol.transport?.available === false) {
+                flashingMessage?.($t?.("stm32WebUsbRequired") || "STM32 DFU flashing requires WebUSB.", FLASH_MESSAGE_TYPES?.INVALID);
+                resetFlashingState?.();
+                return;
+            }
             if (noRebootSequence) {
                 flashing_options.no_reboot = true;
             } else {

@@ -328,3 +328,29 @@ describe("WebUsbDfuTransport.getFunctionalDescriptor", () => {
         await expect(transport.getFunctionalDescriptor()).rejects.toThrow(/functional descriptor/i);
     });
 });
+
+describe("WebUsbDfuTransport without WebUSB", () => {
+    it("does not touch navigator.usb when the browser does not expose it", async () => {
+        vi.stubGlobal("navigator", {});
+        try {
+            const transport = new RealWebUsbDfuTransport();
+
+            expect(transport.available).toBe(false);
+            await expect(transport.getDevices()).resolves.toEqual([]);
+            await expect(transport.requestPermission()).resolves.toBeNull();
+            await expect(transport.waitForDfuDevice(1, 1)).resolves.toBeNull();
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
+    it("reports an explicit unsupported error instead of polling forever", async () => {
+        const transport = {
+            available: false,
+            addEventListener: vi.fn(),
+        };
+        const dfu = new UsbDfuProtocol(transport);
+
+        await expect(dfu.waitForDfu(1, 1)).rejects.toMatchObject({ code: "DFU_UNSUPPORTED" });
+    });
+});

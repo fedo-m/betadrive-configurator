@@ -65,11 +65,13 @@ export const mixerList: Mixer[] = [
     { name: "Custom Tricopter", pos: 24, model: "custom", image: "custom", motors: 3, servos: true },
     { name: "Quad X 1234", pos: 25, model: "quad_x", image: "quad_x_1234", motors: 4, servos: false },
     { name: "Octo X8 +", pos: 26, model: "custom", image: "custom", motors: 8, servos: false },
-    //{ name: "Car", pos: 27, model: "car", image: "car", motors: 1, servos: true }, //  reserved for upcoming feature work
+    { name: "Car", pos: 27, model: "car_truck", image: "car", motors: 1, servos: true },
 ];
 
 /**
- * GLTF stem for the attitude/preview mesh.
+ * GLTF asset name for the attitude/preview mesh. Legacy entries omit the
+ * extension and resolve to `.gltf`; entries may select `.gltf` or `.glb`
+ * explicitly.
  *
  * Built-in mixers map 1:1. Custom Airplane / Custom Tricopter get their craft
  * meshes explicitly. Only the generic Custom entry (pos 22) may infer a mesh
@@ -79,7 +81,7 @@ export const mixerList: Mixer[] = [
  *
  * @param mixerIndex - mixerConfig.mixer (1-based); defaults to the connected FC's
  * @param motorCount - motorConfig.motor_count; defaults to the connected FC's
- * @returns gltf basename under resources/models/
+ * @returns model asset name or legacy stem under resources/models/
  */
 export function resolveMixerModelFile(mixerIndex?: number | null, motorCount?: number | null): string {
     let index = mixerIndex;
@@ -125,6 +127,23 @@ export function resolveMixerModelFile(mixerIndex?: number | null, motorCount?: n
         default:
             return "fallback";
     }
+}
+
+/**
+ * CAR previews start from the vehicle's left side. Live attitude updates are
+ * added to this offset so telemetry cannot reset the model to its asset view.
+ */
+export function resolveModelInitialYaw(mixerIndex?: number | null): number {
+    const index = mixerIndex ?? useFlightControllerStore().mixerConfig?.mixer;
+    return mixerList[index ? index - 1 : -1]?.name === "Car" ? Math.PI / 2 : 0;
+}
+
+const MODEL_FILE_EXTENSION = /\.(?:gltf|glb)$/i;
+
+/** Resolve legacy model stems and explicit GLTF/GLB filenames to runtime URLs. */
+export function resolveModelAssetUrl(modelFile: string): string {
+    const filename = MODEL_FILE_EXTENSION.test(modelFile) ? modelFile : `${modelFile}.gltf`;
+    return `./resources/models/${filename}`;
 }
 
 function getContentBoxSize(element: HTMLElement): { width: number; height: number } {
@@ -174,6 +193,8 @@ class Model {
     readonly modelWrapper: THREE.Object3D;
     readonly camera: THREE.PerspectiveCamera;
     model?: THREE.Object3D | null;
+    private readonly fixedCarOrientation: boolean;
+    private readonly initialYaw: number;
     private _lastPct?: number;
 
     constructor(wrapper: HTMLElement, canvas: HTMLCanvasElement) {
@@ -200,24 +221,29 @@ class Model {
         this.renderer.setSize(width, height);
 
         const model_file = resolveMixerModelFile();
+        const activeMixer = mixerList[(useFlightControllerStore().mixerConfig?.mixer ?? 0) - 1];
+        const isCarModel = activeMixer?.name === "Car";
+        this.fixedCarOrientation = isCarModel;
+        this.initialYaw = resolveModelInitialYaw();
 
         // Setup scene
         this.scene = new THREE.Scene();
         this.modelWrapper = new THREE.Object3D();
+        this.modelWrapper.rotation.y = this.initialYaw;
 
         // Stationary camera
         this.camera = new THREE.PerspectiveCamera(60, width / height, 1, 10000);
         // move camera away from the model
         this.camera.position.z = 125;
 
-        // Setup lights
-        const light = new THREE.AmbientLight(0x404040);
-        const light2 = new THREE.DirectionalLight(new THREE.Color(1, 1, 1), 1.5);
-        light2.position.set(0, 1, 0);
+        // PBR vehicle materials need a brighter fill and a front-facing key light.
+        const ambientLight = new THREE.AmbientLight(isCarModel ? 0xffffff : 0x404040, isCarModel ? 1.2 : 1);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, isCarModel ? 2 : 1.5);
+        directionalLight.position.set(isCarModel ? 2 : 0, isCarModel ? 3 : 1, isCarModel ? 4 : 0);
 
         // Add objects to scene
-        this.scene.add(light);
-        this.scene.add(light2);
+        this.scene.add(ambientLight);
+        this.scene.add(directionalLight);
         this.scene.add(this.camera);
         this.scene.add(this.modelWrapper);
 
@@ -240,7 +266,7 @@ class Model {
     loadGLTF(model_file: string, callback: (model: THREE.Object3D | null) => void): void {
         const loader = new GLTFLoader();
         loader.load(
-            `./resources/models/${model_file}.gltf`,
+            resolveModelAssetUrl(model_file),
             (gltf) => {
                 const model = gltf.scene;
                 model.scale.set(15, 15, 15);
@@ -364,14 +390,14 @@ class Model {
         }
 
         this.model.rotation.x = x;
-        this.modelWrapper.rotation.y = y;
+        this.modelWrapper.rotation.y = y + this.initialYaw;
         this.model.rotation.z = z;
 
         this.render();
     }
 
     rotateBy(x: number, y: number, z: number): void {
-        if (!this.model) {
+        if (!this.model || this.fixedCarOrientation) {
             return;
         }
 

@@ -41,7 +41,7 @@ import { getConnectionState } from "../connection_state";
 // NOTE: the flashing path must NOT depend on serial_backend (the MSP-connection
 // orchestrator). During flashing the received bytes are always MSP, so we feed
 // MSP.read directly instead of serial_backend.read_serial.
-import { DFU_AUTH_REQUIRED } from "../protocols/usbdfu";
+import { DFU_AUTH_REQUIRED, DFU_UNSUPPORTED } from "../protocols/usbdfu";
 import DeviceHandler from "../device_handler";
 import NotificationManager from "../utils/notifications";
 import { get as getConfig } from "../ConfigStorage";
@@ -221,6 +221,11 @@ class STM32Protocol {
             const device = await DeviceHandler.dfuProtocol.waitForDfu(4000, 500);
             console.log(`${this.logHead} DFU device found via waitForDfu:`, device);
         } catch (e) {
+            if ((e as { code?: unknown }).code === DFU_UNSUPPORTED) {
+                gui_log(i18n.getMessage("stm32WebUsbRequired"));
+                this.handleError();
+                return;
+            }
             if ((e as { code?: unknown }).code !== DFU_AUTH_REQUIRED) {
                 console.error(`${this.logHead} waitForDfu error:`, e);
                 this.handleError();

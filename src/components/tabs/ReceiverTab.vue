@@ -38,7 +38,7 @@
                             :key="index"
                             :class="channel.isAux ? `aux-${channel.state}` : undefined"
                         >
-                            <li class="name">{{ channel.name }}</li>
+                            <li class="name" v-html="receiverChannelLabelHtml(channel.name)"></li>
                             <div class="w-full relative">
                                 <UProgress
                                     :model-value="rc.active_channels === 0 ? 0 : channel.width"
@@ -183,7 +183,7 @@
                                         :items="[
                                             { label: $t('receiverRssiChannelDisabledOption'), value: 0 },
                                             ...rssiChannelOptions.map((i) => ({
-                                                label: $t(`controlAxisAux${i - 4}`),
+                                                label: receiverChannelLabel(i),
                                                 value: i,
                                             })),
                                         ]"
@@ -199,7 +199,7 @@
                             <SettingRow>
                                 <UFieldGroup>
                                     <UInput
-                                        v-model="channelMapString"
+                                        v-model="channelMapDisplayString"
                                         @input="onChannelMapInput"
                                         @focusout="validateChannelMap"
                                         class="w-24"
@@ -570,7 +570,7 @@
                         </div>
                         <div class="flex flex-col gap-2">
                             <div class="flex justify-between" v-for="(label, index) in plotLabels" :key="index">
-                                <span class="font-bold">{{ label.name }}</span>
+                                <span class="font-bold" v-html="receiverChannelLabelHtml(label.name)"></span>
                                 <span :class="`ch${index + 1} value min-w-24`">
                                     {{ label.value }}
                                 </span>
@@ -731,6 +731,8 @@ const rc = computed(() => fcStore.rc);
 const rxConfig = computed(() => fcStore.rxConfig);
 const rssiConfig = computed(() => fcStore.rssiConfig);
 const features = computed(() => fcStore.features);
+const CAR_MIXER_ID = 28;
+const isCarMixer = computed(() => fcStore.mixerConfig.mixer === CAR_MIXER_ID);
 
 const rcDeadbandConfig = computed(() => fcStore.rcDeadbandConfig);
 
@@ -738,6 +740,55 @@ const rcDeadbandConfig = computed(() => fcStore.rcDeadbandConfig);
 // armingDisableFlags bitmask). True when the FC is in failsafe or has lost the
 // RX link, so the banner/tint warn that channel values are failsafe output.
 const failsafeActive = computed(() => fcStore.failsafeActive);
+
+function receiverChannelLabel(channelNumber: number) {
+    const withChannelNumber = (label: string) => `${label} (CH${channelNumber})`;
+
+    if (!isCarMixer.value) {
+        const mapLetter = channelMapString.value[channelNumber - 1];
+        const axisKey: Record<string, string> = {
+            A: "controlAxisRoll",
+            E: "controlAxisPitch",
+            R: "controlAxisYaw",
+            T: "controlAxisThrottle",
+        };
+        if (axisKey[mapLetter]) {
+            return withChannelNumber(t(axisKey[mapLetter]));
+        }
+        const auxNumber = Number.parseInt(mapLetter, 10);
+        return withChannelNumber(t(`controlAxisAux${Number.isNaN(auxNumber) ? channelNumber - 4 : auxNumber}`));
+    }
+
+    if (channelNumber === 1) return withChannelNumber(t("controlAxisSteering"));
+    if (channelNumber === 2) return withChannelNumber(t("controlAxisThrottle"));
+    const auxNumber = channelNumber - 2;
+    return withChannelNumber(`${t(`controlAxisAux${auxNumber}`)} [${auxNumber}]`);
+}
+
+function receiverChannelLabelHtml(label: string) {
+    return label.replace(/\[([^\]]+)\] \((CH\d+)\)$/, '<span class="receiver-channel-annotation">[$1; $2]</span>');
+}
+
+function receiverAuxIndex(channelNumber: number) {
+    if (isCarMixer.value) return channelNumber - 3;
+    const mapLetter = channelMapString.value[channelNumber - 1];
+    const auxNumber = Number.parseInt(mapLetter, 10);
+    return Number.isNaN(auxNumber) ? channelNumber - 5 : auxNumber - 1;
+}
+
+function logicalChannelIndexForPhysical(channelNumber: number) {
+    const physicalIndex = channelNumber - 1;
+    if (isCarMixer.value) {
+        const mapped = fcStore.rcMap.indexOf(physicalIndex);
+        if (mapped >= 0) return mapped;
+        if (physicalIndex >= 8) return physicalIndex;
+        // The firmware hands raw channels that no rcmap entry reads to the logical slots from 8 upward, in order
+        const freedBelow = Array.from({ length: physicalIndex }, (_, raw) => raw).filter((raw) => !fcStore.rcMap.includes(raw)).length;
+        return 8 + freedBelow;
+    }
+    const logicalIndex = fcStore.rcMap.indexOf(physicalIndex);
+    return logicalIndex >= 0 ? logicalIndex : physicalIndex;
+}
 
 // From API 1.49 the port lives on the RX parameter group rather than the shared port function
 // mask, so it is assigned here instead of on the (by then read-only) ports tab.
@@ -996,22 +1047,16 @@ function getAuxVisualState(auxIndex: number, value: number | undefined) {
 
 const channelBars = computed(() => {
     const bars = [];
-    const barNames = [t("controlAxisRoll"), t("controlAxisPitch"), t("controlAxisYaw"), t("controlAxisThrottle")];
     const channels = rc.value?.channels || [];
     const activeChannels = rc.value?.active_channels || 8;
     const numBars = activeChannels > 0 ? activeChannels : 8;
 
-    let auxIndex = 1;
     for (let i = 0; i < numBars; i++) {
-        let name;
-        let auxChannelIndex = null;
-        if (i < barNames.length) {
-            name = barNames[i];
-        } else {
-            auxChannelIndex = auxIndex - 1;
-            name = t(`controlAxisAux${auxIndex++}`);
-        }
-        const value = channels[i] || 1500;
+        const channelNumber = i + 1;
+        const name = receiverChannelLabel(channelNumber);
+        const isPrimary = !isCarMixer.value ? channelNumber <= 4 : channelNumber <= 2;
+        const auxChannelIndex = isPrimary ? null : receiverAuxIndex(channelNumber);
+        const value = channels[logicalChannelIndexForPhysical(channelNumber)] || 1500;
         const width = Math.max(0, Math.min(100, ((value - meterScale.min) / (meterScale.max - meterScale.min)) * 100));
         bars.push({
             name,
@@ -1024,17 +1069,17 @@ const channelBars = computed(() => {
     return bars;
 });
 
-// Plot labels for first 4 channels
+// Plot labels for the primary channels. In CAR mode only steering and throttle
+// are primary; all subsequent receiver channels are AUX inputs.
 const plotLabels = computed(() => {
-    const labels = [
-        { name: t("receiverRowContainerRoll"), value: 0 },
-        { name: t("receiverRowContainerPitch"), value: 0 },
-        { name: t("receiverRowContainerYaw"), value: 0 },
-        { name: t("receiverRowContainerThrottle"), value: 0 },
-    ];
+    const channelIndexes = [0, 1, 2, 3].map((index) => logicalChannelIndexForPhysical(index + 1));
+    const labels = channelIndexes.map((channelIndex, index) => ({
+        name: receiverChannelLabel(isCarMixer.value ? index + 1 : channelIndex + 1),
+        value: 0,
+    }));
     const channels = rc.value?.channels || [];
-    for (let i = 0; i < 4 && i < channels.length; i++) {
-        labels[i].value = channels[i] || 0;
+    for (let i = 0; i < channelIndexes.length; i++) {
+        labels[i].value = channels[channelIndexes[i]] || 0;
     }
     return labels;
 });
@@ -1085,6 +1130,10 @@ function onChannelMapInput(event: Event) {
 
 function validateChannelMap() {
     const val = channelMapString.value;
+    if (isCarMixer.value && val === CHANNEL_MAP_PRESET_CAR) {
+        channelMapString.value = "AETR1234";
+        return;
+    }
     if (val.length !== 8) {
         // Reset to current RC_MAP
         updateChannelMapFromRcMap();
@@ -1105,7 +1154,14 @@ function validateChannelMap() {
     }
 }
 
+const ST_PRESET_RC_MAP = [0, 8, 9, 1, 2, 3, 4, 5];
+
 function updateChannelMapFromRcMap() {
+    // The CAR firmware stores the ST123456 preset as these bytes; "AETR1234" is the sentinel shown as ST123456 on CAR
+    if (isCarMixer.value && fcStore.rcMap.length === ST_PRESET_RC_MAP.length && ST_PRESET_RC_MAP.every((v, i) => fcStore.rcMap[i] === v)) {
+        channelMapString.value = "AETR1234";
+        return;
+    }
     const strBuffer = [];
     for (let i = 0; i < fcStore.rcMap.length; i++) {
         strBuffer[fcStore.rcMap[i]] = rcMapLetters[i];
@@ -1115,16 +1171,28 @@ function updateChannelMapFromRcMap() {
 
 /** Reka Select disallows item `value: ""` (empty string clears selection). */
 const CHANNEL_MAP_PRESET_CUSTOM = "__channelMapCustom__";
+const CHANNEL_MAP_PRESET_CAR = "ST123456";
+
+const channelMapDisplayString = computed({
+    get: () => (isCarMixer.value && channelMapString.value === "AETR1234" ? CHANNEL_MAP_PRESET_CAR : channelMapString.value),
+    set: (value: string) => {
+        channelMapString.value = isCarMixer.value && value === CHANNEL_MAP_PRESET_CAR ? "AETR1234" : value;
+    },
+});
 
 const channelMapPresetItems = computed(() => [
     { label: t("receiverChannelDefaultOption"), value: CHANNEL_MAP_PRESET_CUSTOM },
     { label: "FrSky / Futaba / Hitec (AETR1234)", value: "AETR1234" },
     { label: "Spektrum / Graupner / JR (TAER1234)", value: "TAER1234" },
+    ...(isCarMixer.value ? [{ label: t("receiverChannelMapCarOption"), value: CHANNEL_MAP_PRESET_CAR }] : []),
 ]);
 
 const channelMapPresetValue = computed({
     get() {
         const s = channelMapString.value;
+        if (isCarMixer.value && s === "AETR1234") {
+            return CHANNEL_MAP_PRESET_CAR;
+        }
         if (s === "AETR1234" || s === "TAER1234") {
             return s;
         }
@@ -1134,7 +1202,9 @@ const channelMapPresetValue = computed({
         if (val === CHANNEL_MAP_PRESET_CUSTOM) {
             return;
         }
-        channelMapString.value = val;
+        // ST123456 is the CAR-facing schema. The FC keeps its standard AETR map;
+        // the CAR mixer interprets the logical pitch slot as throttle (CH2).
+        channelMapString.value = val === CHANNEL_MAP_PRESET_CAR ? "AETR1234" : val;
         validateChannelMap();
     },
 });
@@ -1399,7 +1469,10 @@ function renderModel(timestamp?: number) {
     timer.update(timestamp);
 
     const channels = rc.value?.channels;
-    if (channels?.[0] && channels?.[1] && channels?.[2] && model && rateCurve && currentRates) {
+    // CAR receiver channels are steering/throttle plus AUX; they are not
+    // aircraft attitude axes. Keep the CAR model at its fixed preview heading
+    // instead of integrating AUX values as pitch/yaw/roll rotation.
+    if (!isCarMixer.value && channels?.[0] && channels?.[1] && channels?.[2] && model && rateCurve && currentRates) {
         const delta = timer.getDelta();
 
         const roll =
@@ -1671,6 +1744,11 @@ onUnmounted(() => {
             }
         }
     }
+}
+
+:deep(.receiver-channel-annotation) {
+    font-size: 80%;
+    white-space: nowrap;
 }
 
 .graphAndLabel {

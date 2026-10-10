@@ -19,6 +19,14 @@ describe("Virtual FC build options", () => {
         setActivePinia(createPinia());
     });
 
+    it("exposes the CAR mixer prerequisites", () => {
+        VirtualFC.setVirtualConfig();
+
+        expect(useFlightControllerStore().config.buildOptions).toEqual(
+            expect.arrayContaining(["USE_PWM_OUTPUT", "USE_SERVOS"]),
+        );
+    });
+
     it("only reports option names that firmware can emit", () => {
         VirtualFC.setVirtualConfig();
 

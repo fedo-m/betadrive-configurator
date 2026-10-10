@@ -168,6 +168,7 @@ const VirtualFC = {
             "USE_SERIALRX_SBUS",
             "USE_TELEMETRY_SMARTPORT",
             "USE_DSHOT",
+            "USE_PWM_OUTPUT",
         ];
         fcStore.config.buildOptions = buildOptions;
 

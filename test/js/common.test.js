@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { getMixerImageSrc } from "../../src/js/utils/common";
-import { mixerList } from "../../src/js/model.js";
+import { mixerList } from "../../src/js/model";
 
 // fcStore.mixerConfig.mixer is 0 until MSP_MIXER_CONFIG arrives, and a tab can render before that
 // — "Reopen last tab on connect" mounts the Motors tab straight after the handshake. The
