@@ -5,7 +5,7 @@ import {
     resolveMixerModelFile,
     resolveModelAssetUrl,
     resolveModelInitialYaw,
-} from "../../src/js/model.js";
+} from "../../src/js/model";
 
 function mixerId(name) {
     return mixerList.findIndex((mixer) => mixer.name === name) + 1;

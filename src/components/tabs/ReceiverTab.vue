@@ -623,14 +623,13 @@ import { useDirtyState } from "@/composables/useDirtyState";
 import { useReboot } from "@/composables/useReboot";
 import { useSaving, withSaveFailureMessage } from "@/composables/useSaving";
 import { runTabLoad } from "@/composables/useTabLoad";
-import { useInterval } from "../../composables/useInterval";
+import { useReceiverData } from "@/composables/receiver/useReceiverData";
+import { useReceiverSave } from "@/composables/receiver/useReceiverSave";
+import { useReceiverCommands } from "@/composables/receiver/useReceiverCommands";
 import BaseTab from "./BaseTab.vue";
 import WikiButton from "@/components/elements/WikiButton.vue";
 import { i18n } from "@/js/localization";
 import { entriesFromModeRanges } from "@/js/utils/modeRanges";
-import MSP from "@/js/msp";
-import MSPCodes from "@/js/msp/MSPCodes";
-import { mspHelper } from "@/js/msp/MSPHelper";
 import GUI from "@/js/gui";
 import Model from "@/js/model";
 import RateCurve, { axisRateCurveParams, type CurrentRates } from "@/js/RateCurve";
@@ -657,7 +656,9 @@ const t = (key: string) => i18n.getMessage(key);
 const fcStore = useFlightControllerStore();
 const connectionStore = useConnectionStore();
 const { saveAndReboot, saveToEeprom } = useReboot();
-const { addInterval, removeInterval } = useInterval();
+const { loadReceiverData, startModelPreviewPolling, startRcPolling, restartRcPolling } = useReceiverData();
+const { sendReceiverSettings, sendFeatureConfig } = useReceiverSave();
+const { bindReceiver, sendRawRx } = useReceiverCommands();
 
 // Template refs
 const modelPreviewContainer = ref<HTMLElement | null>(null);
@@ -1264,7 +1265,7 @@ function resetRefreshRate() {
 }
 
 function sendBind() {
-    MSP.send_message(MSPCodes.MSP2_BETAFLIGHT_BIND);
+    bindReceiver();
     gui_log(t("receiverButtonBindMessage"));
 }
 
@@ -1277,7 +1278,7 @@ function openSticksWindow() {
 
     const rxFunction = (channels: number[]) => {
         if (connectionStore.connectionValid && GUI.active_tab !== "cli") {
-            mspHelper.setRawRx(channels);
+            sendRawRx(channels);
             return true;
         }
         return false;
@@ -1332,17 +1333,7 @@ function findElrsBindingPhrase(elrsUid: number[] | undefined) {
 async function loadConfig() {
     await runTabLoad(
         async () => {
-            await MSP.promise(MSPCodes.MSP_FEATURE_CONFIG);
-            await MSP.promise(MSPCodes.MSP_RC);
-            await MSP.promise(MSPCodes.MSP_MODE_RANGES);
-            await MSP.promise(MSPCodes.MSP_MODE_RANGES_EXTRA);
-            await MSP.promise(MSPCodes.MSP_RSSI_CONFIG);
-            await MSP.promise(MSPCodes.MSP_RC_TUNING);
-            await MSP.promise(MSPCodes.MSP_RX_MAP);
-            await MSP.promise(MSPCodes.MSP_RC_DEADBAND);
-            await MSP.promise(MSPCodes.MSP_RX_CONFIG);
-            await MSP.promise(MSPCodes.MSP_MIXER_CONFIG);
-            await MSP.promise(MSPCodes.MSP_MOTOR_CONFIG);
+            await loadReceiverData();
             await loadRxPort();
             await loadRcdevicePort();
             for (const port of telemetryPorts) {
@@ -1421,10 +1412,7 @@ const saveConfig = (withReboot = false) =>
         }
 
         // Save sequence
-        await MSP.promise(MSPCodes.MSP_SET_RX_MAP, mspHelper.crunch(MSPCodes.MSP_SET_RX_MAP));
-        await MSP.promise(MSPCodes.MSP_SET_RSSI_CONFIG, mspHelper.crunch(MSPCodes.MSP_SET_RSSI_CONFIG));
-        await MSP.promise(MSPCodes.MSP_SET_RC_DEADBAND, mspHelper.crunch(MSPCodes.MSP_SET_RC_DEADBAND));
-        await MSP.promise(MSPCodes.MSP_SET_RX_CONFIG, mspHelper.crunch(MSPCodes.MSP_SET_RX_CONFIG));
+        await sendReceiverSettings();
 
         // rx_uart shares the RX parameter group with everything MSP_SET_RX_CONFIG just wrote,
         // and the persist below serialises that group, so this has to sit between the two.
@@ -1441,7 +1429,7 @@ const saveConfig = (withReboot = false) =>
 
         // Unconditional: the telemetry feature switch lives on this tab, and a mask change has
         // to reach the FC whether or not the save also reboots.
-        await MSP.promise(MSPCodes.MSP_SET_FEATURE_CONFIG, mspHelper.crunch(MSPCodes.MSP_SET_FEATURE_CONFIG));
+        await sendFeatureConfig();
 
         if (withReboot) {
             await saveAndReboot();
@@ -1567,16 +1555,10 @@ function updateRxPlot() {
     samples++;
 }
 
-// RC Data polling
-function getRcData() {
-    MSP.send_message(MSPCodes.MSP_RC, false, false, updateRxPlot);
-}
-
 // Watch refresh rate changes
 watch(refreshRate, (newRate) => {
     setConfig({ rx_refresh_rate: newRate });
-    removeInterval("receiver_pull");
-    addInterval("receiver_pull", getRcData, newRate, true);
+    restartRcPolling(newRate, updateRxPlot);
 });
 
 // Lifecycle
@@ -1592,18 +1574,11 @@ onMounted(async () => {
     renderModel();
 
     // Start model preview polling
-    addInterval(
-        "receiver_pull_for_model_preview",
-        () => {
-            MSP.send_message(MSPCodes.MSP_RC, false, false);
-        },
-        33,
-        false,
-    );
+    startModelPreviewPolling();
 
     // Setup and start RC plot
     setupRxPlot();
-    addInterval("receiver_pull", getRcData, refreshRate.value, true);
+    startRcPolling(refreshRate.value, updateRxPlot);
 
     GUI.content_ready();
 });
